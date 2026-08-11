@@ -655,6 +655,35 @@ function applyRole(rol){
 function saveLoginRole(rol){localStorage.setItem(LAST_LOGIN_ROLE,rol);}
 function loadLoginRole(){const rol=localStorage.getItem(LAST_LOGIN_ROLE);return rol&&LOGIN_USERS[rol]?rol:'est';}
 
+function saveLocalState(){
+  try{
+    const state={
+      saldo:S.saldo,
+      historial:S.historial,
+      tiquetes:S.tiquetes,
+      validaciones:S.validaciones,
+      estudiantes:S.estudiantes,
+      rutas:S.rutas,
+      rol:S.rol
+    };
+    localStorage.setItem('eduticket-local-state', JSON.stringify(state));
+  }catch(e){
+    console.warn('No se pudo guardar el estado local:', e);
+  }
+}
+
+function loadLocalState(){
+  try{
+    const raw=localStorage.getItem('eduticket-local-state');
+    if(!raw) return null;
+    const state=JSON.parse(raw);
+    return state && typeof state==='object' ? state : null;
+  }catch(e){
+    console.warn('No se pudo leer el estado local:', e);
+    return null;
+  }
+}
+
 async function fetchSupabaseTable(table, fallback, options={}){
   if(!supabase || !supabase.from){
     console.warn(`Supabase no está disponible; usando datos locales para ${table}`);
@@ -761,6 +790,20 @@ async function cargarTodo(){
                  {nombre:'Estudiante 08',ruta:'Manuel y Cerros',saldo:150}];
   const fallbackValidaciones=[{nombre:'Bienvenido Estudiante',hora:'06:48',ruta:'Quepos',metodo:'QR',valido:true},
                  {nombre:'Estudiante 02',hora:'06:52',ruta:'San Isidro',metodo:'NFC',valido:true}];
+
+  const savedState = loadLocalState();
+  if(savedState && !supabase){
+    S.saldo = Number(savedState.saldo ?? 4800) || 4800;
+    S.rutas = Array.isArray(savedState.rutas) && savedState.rutas.length ? savedState.rutas : fallbackRutas;
+    S.historial = Array.isArray(savedState.historial) ? savedState.historial : fallbackHistorial;
+    S.tiquetes = Array.isArray(savedState.tiquetes) ? savedState.tiquetes.map(normalizeTicket) : [];
+    S.estudiantes = Array.isArray(savedState.estudiantes) && savedState.estudiantes.length ? savedState.estudiantes : fallbackEstudiantes;
+    S.validaciones = Array.isArray(savedState.validaciones) ? savedState.validaciones.map(normalizeValidation) : fallbackValidaciones;
+    updSaldo();renderHistPrev();renderHistFull();renderRutas();renderTiquetes();
+    renderVal();renderEst();renderChart();renderRutaStats();renderPagos();renderAdminRutas();renderDriverStats();
+    return;
+  }
+
   try{
     const[config,rr,rh,rt,re,rv]=await Promise.all([
       fetchSupabaseTable('config',[{saldo:4800}],{orderBy:'id',ascending:true}).then(x=>x[0]||{saldo:4800}),
@@ -784,6 +827,7 @@ async function cargarTodo(){
     S.validaciones=fallbackValidaciones;
     S.tiquetes=[];
   }
+  saveLocalState();
   updSaldo();renderHistPrev();renderHistFull();renderRutas();renderTiquetes();
   renderVal();renderEst();renderChart();renderRutaStats();renderPagos();renderAdminRutas();renderDriverStats();
 }
@@ -802,8 +846,8 @@ function normalizeValidation(v){
   return {...v,fecha:v?.fecha||hoy(),hora:v?.hora||ahora()};
 }
 function getTodayTickets(){return S.tiquetes.filter(t=> (t.fechaKey||hoyKey())===hoyKey() || (t.fecha||hoy())===hoy());}
-function getTodayPending(){return getTodayTickets().filter(t=>!(t.estado==='usado'||t.cobrado));}
-function getTodayBoarded(){return getTodayTickets().filter(t=>t.estado==='usado'||t.cobrado);}
+function getTodayPending(){return getTodayTickets().filter(t=>t.estado !== 'usado');}
+function getTodayBoarded(){return getTodayTickets().filter(t=>t.estado === 'usado');}
 function getTodayValidations(){return S.validaciones.filter(v=> (v.fecha||hoy())===hoy());}
 
 function renderDriverStats(){
@@ -834,6 +878,7 @@ function go(id){
   if(id==='pET')renderTiquetes();if(id==='pEH')renderHistFull();if(id==='pEC')renderRutas();
   if(id==='pCV')renderVal();if(id==='pCL')renderEst();
   if(id==='pAD'){renderChart();renderRutaStats();renderPagos();}if(id==='pAR')renderAdminRutas();
+  if(id==='pCh' || id==='pCV' || id==='pCL' || id==='pAD' || id==='pAR'){renderDriverStats();}
   if(window.innerWidth<=900)document.getElementById('sb').classList.remove('open');
 }
 function renderMenu(){
@@ -889,20 +934,26 @@ function selRuta(id,el){
 async function doComprar(){
   if(!S.rutaSel){toast('⚠️ Selecciona una ruta','err');return;}
   const ruta=S.rutas.find(r=>r.id===S.rutaSel);
-  // El saldo NO se descuenta aquí: el tiquete queda "pendiente de cobro"
-  // y el monto se descuenta hasta que el chofer lo cobre (ver doValidar).
+  if(!ruta){toast('❌ Ruta no disponible','err');return;}
+  if(S.saldo < ruta.precio){toast('❌ Saldo insuficiente para comprar este tiquete','err');return;}
   try{
     const res=await fetch('/api/comprar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ruta_id:S.rutaSel,cobro:'al_abordar'})});
     const d=await res.json();
     if(d.error){toast('❌ '+d.error,'err');return;}
     const nt=normalizeTicket(d.tiquete||{});
-    nt.fecha=nt.fecha||hoy();nt.hora=nt.hora||ahora();nt.estado=nt.estado||'activo';nt.cobrado=Boolean(nt.cobrado);
+    nt.fecha=nt.fecha||hoy();nt.hora=nt.hora||ahora();nt.estado=nt.estado || 'pendiente';nt.cobrado=true;
     S.tiquetes.unshift(nt);
+    S.historial.unshift({fecha:hoy(),hora:ahora(),ruta:nt.ruta || ruta.nombre,monto:nt.precio || ruta.precio,tipo:'tiquete'});
+    S.saldo -= Number(nt.precio || ruta.precio);
   }catch{
-    const t={id:gc(),ruta:ruta.nombre,precio:ruta.precio,fecha:hoy(),fechaKey:hoyKey(),hora:ahora(),bus:ruta.bus,estado:'activo',cobrado:false};
+    const t={id:gc(),ruta:ruta.nombre,precio:ruta.precio,fecha:hoy(),fechaKey:hoyKey(),hora:ahora(),bus:ruta.bus,estado:'pendiente',cobrado:true};
     S.tiquetes.unshift(t);
+    S.historial.unshift({fecha:hoy(),hora:ahora(),ruta:ruta.nombre,monto:ruta.precio,tipo:'tiquete'});
+    S.saldo -= ruta.precio;
   }
-  toast(`✅ Tiquete reservado – ${ruta.nombre} · se cobrará al abordar`,'ok');
+  updSaldo();renderHistPrev();renderHistFull();renderTiquetes();
+  saveLocalState();
+  toast(`✅ Tiquete comprado – ${ruta.nombre} · monto descontado: ${fmt(ruta.precio)}`,'ok');
   S.rutaSel=null;renderRutas();renderDriverStats();go('pET');
 }
 
@@ -923,14 +974,14 @@ function renderTiquetes(){
           <div class="t-ruta">${t.ruta}</div>
           <div style="font-size:.78rem;color:var(--muted)">${t.bus} · ${t.fecha} ${t.hora}</div>
         </div>
-        <span class="badge ${t.cobrado?'bg-g':'bg-o'}">${t.cobrado?'COBRADO':'PENDIENTE DE COBRO'}</span>
+        <span class="badge ${t.estado === 'usado' ? 'bg-g' : 'bg-o'}">${t.estado === 'usado' ? 'SUBIDO' : 'PENDIENTE DE PASAR'}</span>
       </div>
       <div class="t-dash"></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <div style="font-size:.65rem;color:var(--muted);margin-bottom:.28rem">CÓDIGO QR</div>
           <div class="t-code">${t.id}</div>
-          <div style="font-size:.7rem;color:var(--muted);margin-top:.4rem">${t.cobrado?'Cobrado':'Se cobrará al abordar'}: ${fmt(t.precio)}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.4rem">${t.estado === 'usado' ? 'Usado' : 'Pendiente de pasar'}: ${fmt(t.precio)}</div>
         </div>
         <div class="qr-wrap" id="qr-${t.id}"></div>
       </div>
@@ -964,6 +1015,7 @@ async function doRecarga(){
     const d=await res.json();if(d.error){toast('❌ '+d.error,'err');return;}S.saldo=d.saldo;
   }catch{S.saldo+=monto;}
   S.historial.unshift({fecha:hoy(),hora:ahora(),ruta:`Recarga ${metodo}`,monto,tipo:'recarga'});
+  saveLocalState();
   updSaldo();renderHistPrev();renderHistFull();
   toast(`✅ ₡${monto.toLocaleString('es-CR')} recargados vía ${metodo}`,'ok');
   cm('mRec');document.getElementById('montoInp').value='';S.amtSel=0;
@@ -1070,23 +1122,14 @@ async function doValidar(){
       renderVal();return;
     }
     valido=d.valido;ruta=d.ruta||'—';nombre=d.nombre||'Bienvenido Estudiante';
-    if(valido&&typeof d.saldo==='number')S.saldo=d.saldo;
     if(valido){
-      const t=S.tiquetes.find(x=>x.id===code && (x.estado!=='usado' && !x.cobrado));
+      const t=S.tiquetes.find(x=>x.id===code && x.estado !== 'usado');
       if(t){t.estado='usado';t.cobrado=true;t.fecha=t.fecha||hoy();t.fechaKey=t.fechaKey||hoyKey();}
     }
   }catch{
-    const t=S.tiquetes.find(x=>x.id===code&&x.estado==='activo');
+    const t=S.tiquetes.find(x=>x.id===code && x.estado !== 'usado');
     if(t){
-      if(S.saldo<t.precio){
-        el.className='al al-e';el.textContent='❌ SALDO INSUFICIENTE – El estudiante debe recargar antes de abordar';
-        toast('❌ Saldo insuficiente para cobrar el tiquete','err');
-        S.validaciones.unshift({nombre:'Bienvenido Estudiante',fecha:hoy(),hora:ahora(),ruta:t.ruta,metodo:'QR',valido:false});
-        renderVal();renderDriverStats();return;
-      }
-      // Aquí se cobra el tiquete: el saldo se descuenta cuando el chofer valida el QR
       t.estado='usado';t.cobrado=true;t.fecha=t.fecha||hoy();t.fechaKey=t.fechaKey||hoyKey();valido=true;ruta=t.ruta;nombre='Bienvenido Estudiante';
-      S.saldo-=t.precio;
       S.historial.unshift({fecha:hoy(),hora:ahora(),ruta:t.ruta,monto:t.precio,tipo:'tiquete'});
       updSaldo();renderHistPrev();renderHistFull();renderTiquetes();
     }
@@ -1094,7 +1137,9 @@ async function doValidar(){
   }
   if(valido){el.className='al al-o';el.textContent=`✅ VÁLIDO – ${nombre} – Ruta: ${ruta} – Cobrado`;toast('✅ Tiquete válido, cobro realizado','ok');}
   else{el.className='al al-e';el.textContent='❌ INVÁLIDO – Código no encontrado o ya utilizado';toast('❌ Tiquete inválido','err');}
-  S.validaciones.unshift({nombre,fecha:hoy(),hora:ahora(),ruta,metodo:'QR',valido});renderVal();renderDriverStats();
+  S.validaciones.unshift({nombre,fecha:hoy(),hora:ahora(),ruta,metodo:'QR',valido});
+  saveLocalState();
+  renderVal();renderDriverStats();
 }
 function renderVal(){
   const e=document.getElementById('vList');if(!e)return;
