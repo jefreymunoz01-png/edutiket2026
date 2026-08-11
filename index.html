@@ -571,15 +571,14 @@ select.inp option{background:var(--navy);color:var(--cream)}
 </main>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-const SUPABASE_URL='https://mlhfauuxqrdkohnmztap.supabase.co';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1saGZhdXV4cXJka29obm16dGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NDkyNDYsImV4cCI6MjEwMTQyNTI0Nn0.1rQu2K0q7udRdPqy6yPCs3kAL3z1DGRN1dbSVUlHUZY';
-const supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-const S={rol:'est',saldo:0,rutaSel:null,amtSel:0,tiquetes:[],historial:[],validaciones:[],rutas:[],estudiantes:[],supabaseConnected:false};
+var SUPABASE_URL='https://mlhfauuxqrdkohnmztap.supabase.co';
+var SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1saGZhdXV4cXJka29obm16dGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NDkyNDYsImV4cCI6MjEwMTQyNTI0Nn0.1rQu2K0q7udRdPqy6yPCs3kAL3z1DGRN1dbSVUlHUZY';
+var supabase = window.supabase && window.supabase.createClient ? window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
+var S={rol:'est',saldo:0,rutaSel:null,amtSel:0,tiquetes:[],historial:[],validaciones:[],rutas:[],estudiantes:[],supabaseConnected:false};
 
-const MENUS={
+var MENUS={
   est:[{i:'🏠',l:'Inicio',p:'pEI'},{i:'🎫',l:'Comprar Tiquete',p:'pEC'},
        {i:'📱',l:'Mis Tiquetes',p:'pET'},{i:'📋',l:'Historial',p:'pEH'},
        {i:'📍',l:'GPS / Ruta',p:'pGPS'},{i:'⚙️',l:'Configuración',p:'pECfg'}],
@@ -591,17 +590,17 @@ const MENUS={
        {i:'🖼️',l:'Infografía',p:'pInfo'}]
 };
 
-const USERS={
+var USERS={
   est:{n:'Bienvenido Estudiante',r:'Estudiante',l:'E'},
   cho:{n:'Conductor Eduticket',r:'Chofer',l:'C'},
   adm:{n:'Administrador Eduticket',r:'Administrador',l:'A'}
 };
-const LOGIN_USERS={
+var LOGIN_USERS={
   est:[{user:'estudiante',pass:'1234'},{user:'est',pass:'1234'}],
   cho:[{user:'chofer',pass:'1234'},{user:'cho',pass:'1234'}],
   adm:[{user:'admin',pass:'1234'},{user:'adm',pass:'1234'}]
 };
-const LAST_LOGIN_ROLE='eduticket-last-login-role';
+var LAST_LOGIN_ROLE='eduticket-last-login-role';
 
 function saveAuth(rol){localStorage.setItem('eduticket-auth',JSON.stringify({rol}));}
 function loadAuth(){try{return JSON.parse(localStorage.getItem('eduticket-auth'))||null;}catch{return null;}}
@@ -657,6 +656,10 @@ function saveLoginRole(rol){localStorage.setItem(LAST_LOGIN_ROLE,rol);}
 function loadLoginRole(){const rol=localStorage.getItem(LAST_LOGIN_ROLE);return rol&&LOGIN_USERS[rol]?rol:'est';}
 
 async function fetchSupabaseTable(table, fallback, options={}){
+  if(!supabase || !supabase.from){
+    console.warn(`Supabase no está disponible; usando datos locales para ${table}`);
+    return fallback;
+  }
   try{
     let query=supabase.from(table).select('*');
     if(options.orderBy) query=query.order(options.orderBy,{ascending:options.ascending??false});
@@ -671,6 +674,11 @@ async function fetchSupabaseTable(table, fallback, options={}){
 }
 
 async function initializeSupabase(){
+  if(!supabase || !supabase.from){
+    S.supabaseConnected=false;
+    console.warn('Supabase no está cargado; usando modo local.');
+    return false;
+  }
   try{
     const {error}=await supabase.from('rutas').select('id').limit(1);
     if(error) throw error;
@@ -780,11 +788,11 @@ async function cargarTodo(){
   renderVal();renderEst();renderChart();renderRutaStats();renderPagos();renderAdminRutas();renderDriverStats();
 }
 
-const fmt=n=>'₡'+n.toLocaleString('es-CR');
-const ahora=()=>new Date().toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'});
-const hoy=()=>new Date().toLocaleDateString('es-CR');
-const hoyKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
-const gc=()=>Math.random().toString(36).substring(2,12).toUpperCase();
+var fmt=n=>'₡'+n.toLocaleString('es-CR');
+var ahora=()=>new Date().toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'});
+var hoy=()=>new Date().toLocaleDateString('es-CR');
+var hoyKey=()=>{var d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+var gc=()=>Math.random().toString(36).substring(2,12).toUpperCase();
 
 function normalizeTicket(t){
   const fecha=t?.fecha||hoy();
@@ -963,7 +971,7 @@ async function doRecarga(){
 }
 
 // --- Escaneo de QR con cámara: más estable en móviles y sin librerías externas ---
-let scanStream=null, scanTimer=null, scanDetector=null, scanBusy=false;
+var scanStream=null, scanTimer=null, scanDetector=null, scanBusy=false;
 function setScanStatus(msg){
   const el=document.getElementById('scanStatus');
   if(el)el.textContent=msg;
