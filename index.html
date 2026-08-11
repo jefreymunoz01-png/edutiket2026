@@ -283,7 +283,7 @@ select.inp option{background:var(--navy);color:var(--cream)}
         <button class="btn bgh bsm" type="button" onclick="togglePasswordView()" id="passToggle">👁</button>
       </div>
     </div>
-    <button class="btn bp bbl" onclick="doLogin()">🔐 Ingresar</button>
+    <button class="btn bp bbl" id="loginBtn" onclick="doLogin()">🔐 Ingresar</button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -711,13 +711,19 @@ async function doLogin(){
     if(passField) passField.focus();
   }
 }
+window.doLogin = doLogin;
 function logout(){clearAuth();showLogin();const u=document.getElementById('loginUser');const p=document.getElementById('loginPass');const e=document.getElementById('loginError');if(u)u.value='';if(p)p.value='';if(e)e.textContent='';}
+window.logout = logout;
 
 window.addEventListener('DOMContentLoaded',async()=>{buildAmts();setLoginRole(loadLoginRole(),false);showLogin();await initializeSupabase();});
 
 window.addEventListener('DOMContentLoaded',()=>{
   const sel=document.getElementById('loginRol');
   if(sel)sel.addEventListener('change',()=>setLoginRole(sel.value));
+  const loginBtn=document.getElementById('loginBtn');
+  if(loginBtn){
+    loginBtn.addEventListener('click',doLogin);
+  }
 });
 
 async function cargarTodo(){
