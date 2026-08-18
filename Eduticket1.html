@@ -220,14 +220,7 @@ select.inp option{background:var(--navy);color:var(--cream)}
 .est-av{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
   justify-content:center;font-weight:700;font-size:.88rem;background:linear-gradient(135deg,var(--royal),var(--teal))}
 
-/* MAPA */
-.map-box{background:rgba(8,20,46,.7);border:1px solid var(--line);border-radius:20px;height:250px;
-  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;margin-bottom:1.1rem}
-.map-pulse{width:66px;height:66px;border-radius:50%;background:rgba(10,206,200,.12);
-  display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(10,206,200,.4)}50%{box-shadow:0 0 0 26px rgba(10,206,200,0)}}
-.map-live{position:absolute;top:.9rem;right:.9rem;background:rgba(30,204,110,.15);
-  border:1px solid rgba(30,204,110,.35);color:var(--green);padding:.28rem .7rem;border-radius:50px;font-size:.68rem;font-weight:700}
+
 
 /* SWITCHES */
 .sw-wrap{display:flex;justify-content:space-between;align-items:center;padding:.7rem 0;border-bottom:1px solid var(--line)}
@@ -525,40 +518,7 @@ select.inp option{background:var(--navy);color:var(--cream)}
   <div id="adminRutas"></div>
 </div>
 
-<!-- GPS -->
-<div class="page" id="pGPS">
-  <div class="topbar"><div><div class="pt">GPS EN VIVO</div><div class="ps">Eduticket – Ubicación de buses en tiempo real</div></div></div>
-  <div class="map-box">
-    <div>
-      <div class="map-pulse" style="margin:0 auto"><span style="font-size:2rem">🚌</span></div>
-      <div style="text-align:center;margin-top:.9rem;color:var(--muted);font-size:.8rem">Bus 01 – Ruta Quepos – En camino</div>
-    </div>
-    <div class="map-live">● EN VIVO</div>
-    <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.06" preserveAspectRatio="none">
-      <line x1="25%" y1="0" x2="25%" y2="100%" stroke="#0acec8" stroke-width="1"/>
-      <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#0acec8" stroke-width="1"/>
-      <line x1="75%" y1="0" x2="75%" y2="100%" stroke="#0acec8" stroke-width="1"/>
-      <line x1="0" y1="33%" x2="100%" y2="33%" stroke="#0acec8" stroke-width="1"/>
-      <line x1="0" y1="66%" x2="100%" y2="66%" stroke="#0acec8" stroke-width="1"/>
-    </svg>
-  </div>
-  <div class="g2">
-    <div class="card">
-      <div style="font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:.45rem">Bus 01 – Quepos</div>
-      <div style="font-weight:700;margin-bottom:.22rem">Conductor Eduticket</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.7rem">ETA: 7:15 AM · 18 estudiantes</div>
-      <div class="pbar"><div class="pfill" style="width:65%"></div></div>
-      <div style="font-size:.68rem;color:var(--muted);margin-top:.3rem">65% del trayecto completado</div>
-    </div>
-    <div class="card">
-      <div style="font-size:.62rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:.45rem">Bus 02 – Manuel y Cerros</div>
-      <div style="font-weight:700;margin-bottom:.22rem">Conductor Eduticket</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.7rem">ETA: 7:30 AM · 14 estudiantes</div>
-      <div class="pbar"><div class="pfill" style="width:30%"></div></div>
-      <div style="font-size:.68rem;color:var(--muted);margin-top:.3rem">30% del trayecto completado</div>
-    </div>
-  </div>
-</div>
+
 
 <!-- INFOGRAFÍA -->
 <div class="page" id="pInfo">
@@ -582,13 +542,11 @@ var S={rol:'est',saldo:0,rutaSel:null,amtSel:0,tiquetes:[],historial:[],validaci
 var MENUS={
   est:[{i:'🏠',l:'Inicio',p:'pEI'},{i:'🎫',l:'Comprar Tiquete',p:'pEC'},
        {i:'📱',l:'Mis Tiquetes',p:'pET'},{i:'📋',l:'Historial',p:'pEH'},
-       {i:'📍',l:'GPS / Ruta',p:'pGPS'},{i:'⚙️',l:'Configuración',p:'pECfg'}],
+       {i:'⚙️',l:'Configuración',p:'pECfg'}],
   cho:[{i:'🚌',l:'Panel Chofer',p:'pCh'},{i:'📷',l:'Validar QR',p:'pCV'},
-       {i:'👥',l:'Lista Estudiantes',p:'pCL'},{i:'📍',l:'GPS en Vivo',p:'pGPS'},
-       {i:'🔔',l:'Alertas',p:'pAl'}],
+       {i:'👥',l:'Lista Estudiantes',p:'pCL'},{i:'🔔',l:'Alertas',p:'pAl'}],
   adm:[{i:'📊',l:'Estadísticas',p:'pAD'},{i:'🗺️',l:'Rutas',p:'pAR'},
-       {i:'📍',l:'GPS en Vivo',p:'pGPS'},{i:'🔔',l:'Alertas',p:'pAl'},
-       {i:'🖼️',l:'Infografía',p:'pInfo'}]
+       {i:'🔔',l:'Alertas',p:'pAl'},{i:'🖼️',l:'Infografía',p:'pInfo'}]
 };
 
 var USERS={
