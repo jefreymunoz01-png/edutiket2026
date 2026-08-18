@@ -614,33 +614,33 @@ function applyRole(rol){
 function saveLoginRole(rol){localStorage.setItem(LAST_LOGIN_ROLE,rol);}
 function loadLoginRole(){const rol=localStorage.getItem(LAST_LOGIN_ROLE);return rol&&LOGIN_USERS[rol]?rol:'est';}
 
-async function fetchSupabaseTable(table, fallback, options={}){
-  try{
-    let query=supabase.from(table).select('*');
-    if(options.orderBy) query=query.order(options.orderBy,{ascending:options.ascending??false});
-    if(options.limit) query=query.limit(options.limit);
-    const {data,error}=await query;
-    if(error) throw error;
-    return Array.isArray(data) ? data : fallback;
-  }catch(e){
-    console.warn(`Supabase no pudo leer ${table}:`,e);
-    return fallback;
+async function fetchSupabaseTable(table, options={}){
+  if(!supabase || !supabase.from){
+    throw new Error(`Supabase no está disponible para ${table}`);
   }
+
+  let query=supabase.from(table).select('*');
+  if(options.orderBy) query=query.order(options.orderBy,{ascending:options.ascending??false});
+  if(options.limit) query=query.limit(options.limit);
+
+  const {data,error}=await query;
+  if(error) throw error;
+  if(!Array.isArray(data)) throw new Error(`La tabla ${table} no devolvió datos válidos`);
+  return data;
 }
 
 async function initializeSupabase(){
-  try{
-    const {error}=await supabase.from('rutas').select('id').limit(1);
-    if(error) throw error;
-    S.supabaseConnected=true;
-    toast('✅ Conectado a Supabase','ok');
-    return true;
-  }catch(e){
+  if(!supabase || !supabase.from){
     S.supabaseConnected=false;
-    console.warn('No se pudo conectar a Supabase; usando datos locales.',e);
-    toast('⚠️ Supabase no responde; usando datos locales','info');
-    return false;
+    throw new Error('Supabase no está cargado');
   }
+
+  const {error}=await supabase.from('rutas').select('id').limit(1);
+  if(error) throw error;
+
+  S.supabaseConnected=true;
+  toast('✅ Conectado a Supabase','ok');
+  return true;
 }
 
 async function doLogin(){
@@ -661,8 +661,14 @@ async function doLogin(){
   if(valid){
     if(err) err.textContent='';
     saveAuth(rol);
-    try{ await cargarTodo(); }catch(e){/* fallback local */}
-    applyRole(rol);
+    try{
+      await cargarTodo();
+      applyRole(rol);
+    }catch(e){
+      console.error('Error al cargar datos desde Supabase:', e);
+      if(err) err.textContent='No se pudo conectar a la base de datos.';
+      return;
+    }
   }else{
     if(err) err.textContent='Usuario o contraseña incorrectos';
     setLoginRole(rol,false);
@@ -673,7 +679,17 @@ window.doLogin = doLogin;
 function logout(){clearAuth();showLogin();const u=document.getElementById('loginUser');const p=document.getElementById('loginPass');const e=document.getElementById('loginError');if(u)u.value='';if(p)p.value='';if(e)e.textContent='';}
 window.logout = logout;
 
-window.addEventListener('DOMContentLoaded',async()=>{buildAmts();setLoginRole(loadLoginRole(),false);showLogin();await initializeSupabase();});
+window.addEventListener('DOMContentLoaded',async()=>{
+  buildAmts();
+  setLoginRole(loadLoginRole(),false);
+  showLogin();
+  try{
+    await initializeSupabase();
+  }catch(e){
+    console.error('Fallo al conectar con Supabase:', e);
+    toast('❌ No hay conexión a la base de datos','err');
+  }
+});
 
 window.addEventListener('DOMContentLoaded',()=>{
   const sel=document.getElementById('loginRol');
@@ -685,55 +701,22 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 async function cargarTodo(){
-  const fallbackRutas=[
-    {id:'r1', nombre:'Parcelas',   precio:300,tiempo:'15 min',distancia:'6 km', bus:'Bus 01'},
-    {id:'r2', nombre:'Damas',      precio:300,tiempo:'20 min',distancia:'9 km', bus:'Bus 02'},
-    {id:'r3', nombre:'Costanare',  precio:300,tiempo:'25 min',distancia:'11 km',bus:'Bus 03'},
-    {id:'r4', nombre:'Inmaculada', precio:300,tiempo:'25 min',distancia:'12 km',bus:'Bus 04'},
-    {id:'r5', nombre:'Boca Vieja', precio:300,tiempo:'30 min',distancia:'14 km',bus:'Bus 05'},
-    {id:'r6', nombre:'Quepos',     precio:300,tiempo:'20 min',distancia:'8 km', bus:'Bus 06'},
-    {id:'r7', nombre:'Naranjito',  precio:300,tiempo:'30 min',distancia:'15 km',bus:'Bus 07'},
-    {id:'r8', nombre:'Villa Nueva',precio:300,tiempo:'35 min',distancia:'18 km',bus:'Bus 08'},
-    {id:'r9', nombre:'Paquita',    precio:300,tiempo:'35 min',distancia:'17 km',bus:'Bus 09'},
-    {id:'r10',nombre:'Cerros',     precio:600,tiempo:'55 min',distancia:'30 km',bus:'Bus 10'},
-    {id:'r11',nombre:'Manuel',     precio:600,tiempo:'50 min',distancia:'28 km',bus:'Bus 11'},
-  ];
-  const fallbackHistorial=[{fecha:'09/05/2025',hora:'07:15',ruta:'Quepos',monto:300,tipo:'tiquete'},
-                 {fecha:'08/05/2025',hora:'07:20',ruta:'Manuel y Cerros',monto:600,tipo:'tiquete'},
-                 {fecha:'07/05/2025',hora:'18:00',ruta:'Recarga SINPE',monto:3000,tipo:'recarga'}];
-  const fallbackEstudiantes=[{nombre:'Bienvenido Estudiante',ruta:'Quepos',saldo:4800},
-                 {nombre:'Estudiante 02',ruta:'San Isidro',saldo:1500},
-                 {nombre:'Estudiante 03',ruta:'Manuel y Cerros',saldo:900},
-                 {nombre:'Estudiante 04',ruta:'Quepos',saldo:300},
-                 {nombre:'Estudiante 05',ruta:'Dominical',saldo:2100},
-                 {nombre:'Estudiante 06',ruta:'San Isidro',saldo:600},
-                 {nombre:'Estudiante 07',ruta:'Quepos',saldo:3300},
-                 {nombre:'Estudiante 08',ruta:'Manuel y Cerros',saldo:150}];
-  const fallbackValidaciones=[{nombre:'Bienvenido Estudiante',hora:'06:48',ruta:'Quepos',metodo:'QR',valido:true},
-                 {nombre:'Estudiante 02',hora:'06:52',ruta:'San Isidro',metodo:'NFC',valido:true}];
-  try{
-    const[config,rr,rh,rt,re,rv]=await Promise.all([
-      fetchSupabaseTable('config',[{saldo:4800}],{orderBy:'id',ascending:true}).then(x=>x[0]||{saldo:4800}),
-      fetchSupabaseTable('rutas',fallbackRutas,{orderBy:'id',ascending:true}),
-      fetchSupabaseTable('historial',fallbackHistorial,{orderBy:'fecha',ascending:false}),
-      fetchSupabaseTable('tiquetes',[],{orderBy:'created_at',ascending:false}),
-      fetchSupabaseTable('estudiantes',fallbackEstudiantes,{orderBy:'nombre',ascending:true}),
-      fetchSupabaseTable('validaciones',fallbackValidaciones,{orderBy:'hora',ascending:false}),
-    ]);
-    S.saldo=Number(config?.saldo ?? 4800) || 4800;
-    S.rutas=(rr&&rr.length?rr:fallbackRutas);
-    S.historial=(rh&&rh.length?rh:fallbackHistorial);
-    S.tiquetes=(rt||[]).map(normalizeTicket);
-    S.estudiantes=(re&&re.length?re:fallbackEstudiantes);
-    S.validaciones=(rv||[]).map(normalizeValidation);
-  }catch{
-    S.saldo=4800;
-    S.rutas=fallbackRutas;
-    S.historial=fallbackHistorial;
-    S.estudiantes=fallbackEstudiantes;
-    S.validaciones=fallbackValidaciones;
-    S.tiquetes=[];
-  }
+  const [config,rr,rh,rt,re,rv]=await Promise.all([
+    fetchSupabaseTable('config',{orderBy:'id',ascending:true}).then(x => x[0] || {saldo: 4800}),
+    fetchSupabaseTable('rutas',{orderBy:'id',ascending:true}),
+    fetchSupabaseTable('historial',{orderBy:'fecha',ascending:false}),
+    fetchSupabaseTable('tiquetes',{orderBy:'created_at',ascending:false}),
+    fetchSupabaseTable('estudiantes',{orderBy:'nombre',ascending:true}),
+    fetchSupabaseTable('validaciones',{orderBy:'hora',ascending:false}),
+  ]);
+
+  S.saldo=Number(config?.saldo ?? 4800) || 4800;
+  S.rutas=rr;
+  S.historial=rh;
+  S.tiquetes=(rt||[]).map(normalizeTicket);
+  S.estudiantes=re;
+  S.validaciones=(rv||[]).map(normalizeValidation);
+
   updSaldo();renderHistPrev();renderHistFull();renderRutas();renderTiquetes();
   renderVal();renderEst();renderChart();renderRutaStats();renderPagos();renderAdminRutas();renderDriverStats();
 }
